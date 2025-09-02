@@ -11,7 +11,8 @@ services:
     volumes:
       - ./mount:/home/frappe
     ports:
-      - "8000:8000"
+      - "8000:8000"        # Frappe web
+      - "9000:9000"        # Socket.IO port (matches common_site_config.json)
     depends_on:
       - mariadb
       - redis-cache

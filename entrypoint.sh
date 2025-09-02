@@ -111,11 +111,11 @@ if [ -d "sites/$SITE_NAME" ]; then
 
     # Restart bench to ensure services pick up latest config
     echo "Restarting bench..."
-    ./env/bin/bench restart
+    bench restart
 
     # Set the current site
     echo "Setting current site to $SITE_NAME..."
-    ./env/bin/bench use "$SITE_NAME"
+    bench use "$SITE_NAME"
 else
     echo "ERROR: Site $SITE_NAME does not exist in sites/."
     exit 1
@@ -125,12 +125,7 @@ fi
 # Start bench
 # ---------------------------
 echo "Starting bench..."
-./env/bin/bench start
-
-# ---------------------------
-# Keep container running if no command is passed
-# ---------------------------
-exec "$@"
+bench start
 
 # ---------------------------
 # Keep container running if no command is passed

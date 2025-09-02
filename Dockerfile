@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y \
     redis-server \
     curl wget gnupg build-essential xvfb libfontconfig sudo \
     cron \
-    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # Set root password (change 'yourpassword' to a secure password)
@@ -83,5 +82,9 @@ USER frappe
 
 
 WORKDIR /home/frappe
+
+# ---------------------------
+# Setup apps and site on first run
+# ---------------------------
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["bash"]
