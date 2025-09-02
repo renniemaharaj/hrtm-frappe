@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  frappe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: frappe_app
+    working_dir: /home/frappe
+    command: sleep infinity
+    volumes:
+      - ./mount:/home/frappe
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql
+      - redis-cache
+      - redis-queue
+      - redis-socketio
+
+  mysql:
+    image: mysql:8.0
+    container_name: frappe_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: frappe
+      MYSQL_PASSWORD: frappe
+      MYSQL_DATABASE: frappe
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mysqldata:/var/lib/mysql
+
+  redis-cache:
+    image: redis:7
+    container_name: frappe_redis_cache
+    restart: always
+    volumes:
+      - ./redis-cache:/data
+
+  redis-queue:
+    image: redis:7
+    container_name: frappe_redis_queue
+    restart: always
+    volumes:
+      - ./redis-queue:/data
+
+  redis-socketio:
+    image: redis:7
+    container_name: frappe_redis_socketio
+    restart: always
+    volumes:
+      - ./redis-socketio:/data
+
+volumes:
+  mysqldata:
+  redis-cache:
+  redis-queue:
+  redis-socketio:
+  mount:
