@@ -10,18 +10,14 @@ RUN apt-get update && apt-get install -y \
     mariadb-server mariadb-client libmariadb-dev pkg-config \
     redis-server \
     curl wget gnupg build-essential xvfb libfontconfig sudo \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
+# Set root password (change 'yourpassword' to a secure password)
+RUN echo "root:yourpassword" | chpasswd
+
 # Configure MariaDB utf8mb4 (for older Frappe versions)
-RUN echo "\
-[mysqld]\n\
-character-set-client-handshake = FALSE\n\
-character-set-server = utf8mb4\n\
-collation-server = utf8mb4_unicode_ci\n\
-\n\
-[mysql]\n\
-default-character-set = utf8mb4\n\
-" > /etc/mysql/my.cnf
+RUN echo "[mysqld]\ncharacter-set-client-handshake = FALSE\ncharacter-set-server = utf8mb4\ncollation-server = utf8mb4_unicode_ci\n\n[mysql]\ndefault-character-set = utf8mb4\n" > /etc/mysql/my.cnf
 
 # ---------------------------
 # Install Node.js 18.x and Yarn globally
@@ -36,13 +32,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
 RUN useradd -ms /bin/bash frappe && \
     echo "frappe ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
+# Fix ownership
+RUN chown -R frappe:frappe /home/frappe
+
 USER frappe
 WORKDIR /home/frappe
 
 # Verify Node, npm, Yarn
 RUN node -v && npm -v && yarn -v
-
-# Increase yarn network timeout (for slower connections)
 RUN yarn config set network-timeout 600000 -g
 
 USER root
@@ -61,27 +58,29 @@ RUN wkhtmltopdf --version
 
 USER root
 
-# Fix ownership
-RUN chown -R frappe:frappe /home/frappe
-
 # ---------------------------
 # Install Bench CLI
 # ---------------------------
 RUN PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install frappe-bench
 
-USER frappe
-
-# Verify Bench
+# Verify bench
 RUN bench --version
 
-USER root
+# ---------------------------
+# Copy entrypoint script for automated bench setup
+# ---------------------------
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # ---------------------------
-# Runtime working dir
+# Copy custom common_site_config.json
 # ---------------------------
+COPY common_site_config.json /common_site_config.json
+RUN chown frappe:frappe /common_site_config.json
+
+USER frappe
+
+
 WORKDIR /home/frappe
-
-# Note:
-# - Bench init should be executed at container runtime:
-# docker exec -it frappe_app su frappe -c "bench init --frappe-branch develop frappe-bench"
-# - This allows persistence of frappe-bench folder using volumes.
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]
