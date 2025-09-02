@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     mariadb-server mariadb-client libmariadb-dev pkg-config \
     redis-server \
     curl wget gnupg build-essential xvfb libfontconfig sudo \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure MariaDB utf8mb4 (for older Frappe versions)
@@ -74,7 +75,10 @@ USER frappe
 # Verify Bench
 RUN bench --version
 
-USER root
+# ---------------------------
+# Test cron installation
+# ---------------------------
+RUN crontab -l || echo "* * * * * echo 'cron works' >> /home/frappe/cron_test.log"
 
 # ---------------------------
 # Runtime working dir
