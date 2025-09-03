@@ -5,8 +5,28 @@ set -e
 # Environment / Variables
 # ---------------------------
 FRAPPE_HOME=/home/frappe
-BENCH_DIR=$FRAPPE_HOME/frappe-bench
-SITE_NAME="${SITE_NAME:-frontend}"
+INSTANCE_JSON_SOURCE="/instance.json"
+COMMON_CONFIG_SOURCE="/common_site_config.json"
+
+# ---------------------------
+# Load instance.json
+# ---------------------------
+if [ -f "$INSTANCE_JSON_SOURCE" ]; then
+    echo "Loading instance.json..."
+    # Export JSON key-values as env vars
+    export $(jq -r 'to_entries | .[] | "\(.key)=\(.value)"' "$INSTANCE_JSON_SOURCE")
+else
+    echo "Error: $INSTANCE_JSON_SOURCE not found. Exiting."
+    exit 1
+fi
+
+# ---------------------------
+# Instance variables
+# ---------------------------
+BENCH_DIR="$FRAPPE_HOME/${frappe_bench:-frappe-bench}"
+SITE_NAME="${instance_site:-frontend}"
+frappe_branch="${frappe_branch:-develop}"
+
 DB_HOST="${DB_HOST:-mariadb}"
 DB_ROOT_USERNAME="${DB_ROOT_USERNAME:-root}"
 DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD:-root}"
@@ -18,7 +38,6 @@ REDIS_QUEUE="${REDIS_QUEUE:-redis://redis-queue:6379}"
 REDIS_CACHE="${REDIS_CACHE:-redis://redis-cache:6379}"
 REDIS_SOCKETIO="${REDIS_SOCKETIO:-redis://redis-socketio:6379}"
 
-COMMON_CONFIG_SOURCE="/common_site_config.json"
 COMMON_CONFIG_DEST="$BENCH_DIR/sites/common_site_config.json"
 
 # ---------------------------
@@ -41,7 +60,6 @@ echo "MariaDB is up!"
 # Wait for Redis services
 # ---------------------------
 echo "Waiting for Redis services..."
-
 for REDIS_URL in "$REDIS_QUEUE" "$REDIS_CACHE" "$REDIS_SOCKETIO"; do
     host=$(echo "$REDIS_URL" | sed -E 's|redis://([^:/]+):?.*|\1|')
     port=$(echo "$REDIS_URL" | sed -E 's|redis://[^:]+:([0-9]+).*|\1|')
@@ -56,8 +74,8 @@ done
 # Initialize bench if not exists
 # ---------------------------
 if [ ! -d "$BENCH_DIR" ]; then
-    echo "Initializing Frappe bench..."
-    bench init --frappe-branch develop "$BENCH_DIR"
+    echo "Initializing Frappe bench ($BENCH_DIR)..."
+    bench init --frappe-branch "$frappe_branch" "$BENCH_DIR"
 fi
 
 cd "$BENCH_DIR"
@@ -80,7 +98,7 @@ fi
 for app in erpnext hrms; do
     if [ ! -d "apps/$app" ]; then
         echo "Getting app $app..."
-        bench get-app "$app" --branch develop
+        bench get-app "$app" --branch "$frappe_branch"
     fi
 done
 
@@ -101,6 +119,16 @@ if [ ! -d "sites/$SITE_NAME" ]; then
 
     echo "Installing apps on site $SITE_NAME..."
     bench --site "$SITE_NAME" install-app erpnext hrms
+else
+    echo "Site $SITE_NAME already exists."
+
+    # Ensure apps are installed
+    for app in erpnext hrms; do
+        if ! bench --site "$SITE_NAME" list-apps | grep -q "$app"; then
+            echo "Installing missing app $app on $SITE_NAME..."
+            bench --site "$SITE_NAME" install-app "$app"
+        fi
+    done
 fi
 
 # ---------------------------

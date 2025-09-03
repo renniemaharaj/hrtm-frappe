@@ -2,6 +2,9 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Set root password (change 'yourpassword' to a secure password)
+RUN echo "root:yourpassword" | chpasswd
+
 # ---------------------------
 # System dependencies
 # ---------------------------
@@ -10,11 +13,9 @@ RUN apt-get update && apt-get install -y \
     mariadb-server mariadb-client libmariadb-dev pkg-config \
     redis-server \
     curl wget gnupg build-essential xvfb libfontconfig sudo \
-    cron \
+    cron jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Set root password (change 'yourpassword' to a secure password)
-RUN echo "root:yourpassword" | chpasswd
 
 # Configure MariaDB utf8mb4 (for older Frappe versions)
 RUN echo "[mysqld]\ncharacter-set-client-handshake = FALSE\ncharacter-set-server = utf8mb4\ncollation-server = utf8mb4_unicode_ci\n\n[mysql]\ndefault-character-set = utf8mb4\n" > /etc/mysql/my.cnf
@@ -42,6 +43,9 @@ WORKDIR /home/frappe
 RUN node -v && npm -v && yarn -v
 RUN yarn config set network-timeout 600000 -g
 
+# Verify jq installation
+RUN jq --version
+
 USER root
 
 # ---------------------------
@@ -63,8 +67,12 @@ USER root
 # ---------------------------
 RUN PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install frappe-bench
 
+USER frappe
+
 # Verify bench
 RUN bench --version
+
+USER root
 
 # ---------------------------
 # Copy entrypoint script for automated bench setup
@@ -77,6 +85,12 @@ RUN chmod +x /entrypoint.sh
 # ---------------------------
 COPY common_site_config.json /common_site_config.json
 RUN chown frappe:frappe /common_site_config.json
+
+# ---------------------------
+# Copy instance.json file
+# ---------------------------
+COPY instance.json /instance.json
+RUN chown frappe:frappe /instance.json
 
 USER frappe
 
