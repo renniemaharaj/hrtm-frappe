@@ -1,6 +1,5 @@
 {
     "instance_type": "isolated",
-    "frappe_bench": "frappe-bench",
     "instance_site": "frontend",
     "frappe_branch": "develop"
 }

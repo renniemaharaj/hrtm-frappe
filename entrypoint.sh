@@ -5,6 +5,7 @@ set -e
 # Environment / Variables
 # ---------------------------
 FRAPPE_HOME=/home/frappe
+frappe_branch=frappe-bench
 INSTANCE_JSON_SOURCE="/instance.json"
 COMMON_CONFIG_SOURCE="/common_site_config.json"
 
@@ -25,7 +26,6 @@ fi
 # ---------------------------
 BENCH_DIR="$FRAPPE_HOME/${frappe_bench:-frappe-bench}"
 SITE_NAME="${instance_site:-frontend}"
-frappe_branch="${frappe_branch:-develop}"
 
 DB_HOST="${DB_HOST:-mariadb}"
 DB_ROOT_USERNAME="${DB_ROOT_USERNAME:-root}"
@@ -110,17 +110,14 @@ if [ ! -d "sites/$SITE_NAME" ]; then
     bench new-site "$SITE_NAME" \
         --db-root-username "$DB_ROOT_USERNAME" \
         --db-root-password "$DB_ROOT_PASSWORD" \
-        --db-name "$SITE_NAME" \
-        --db-user "$DB_USER" \
-        --db-password "$DB_PASSWORD" \
-        --db-host "$DB_HOST" \
-        --db-port "$DB_PORT" \
-        --admin-password admin --force
+        --admin-password admin
 
     echo "Installing apps on site $SITE_NAME..."
     bench --site "$SITE_NAME" install-app erpnext hrms
 else
     echo "Site $SITE_NAME already exists."
+    # Optional: migrations or app installs
+fi
 
     # Ensure apps are installed
     for app in erpnext hrms; do
@@ -129,7 +126,6 @@ else
             bench --site "$SITE_NAME" install-app "$app"
         fi
     done
-fi
 
 # ---------------------------
 # Ensure site exists
