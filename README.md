@@ -5,19 +5,19 @@
 This Docker Compose project sets up a full **Frappe development environment** with automatic app management:
 
 * **Frappe Framework** (branch configurable, default `develop`)
-* **ERPNext** and **HRMS** (preloaded apps)
+* **ERPNext** and other site-specific apps
 * **MariaDB**
 * **Redis** (cache, queue, socketio)
-* **Site auto-creation** based on `instance.json` in the repository root
-* **App alignment**: site apps are automatically synced with the `preloaded_apps` list from `instance.json`.
+* **Site auto-creation and management** based on `instance.json` in the repository root
+* **App alignment**: site apps are automatically installed and synced based on each site's requirements.
 
 ## Features
 
 * **Zero manual steps** after first run — sites and apps are provisioned automatically.
-* **App sync logic**:
+* **App management logic**:
 
-  * Apps listed in `preloaded_apps` are always installed on the site.
-  * Apps not in `preloaded_apps` are uninstalled (except `frappe`).
+  * Apps required by each site are installed automatically.
+  * Any apps not required are uninstalled (except `frappe`).
   * Ensures environments are consistent across containers.
 * **Optimized entrypoint**:
 
@@ -25,35 +25,50 @@ This Docker Compose project sets up a full **Frappe development environment** wi
   * Uses Docker environment variables for MariaDB credentials.
   * Parses `common_site_config.json` for Redis URLs using `jq`.
 
+## Site Auto-Management
+
+The entrypoint handles site management automatically:
+
+1. Reads `instance.json` to get the list of sites and their required apps.
+2. Optionally drops abandoned sites if `drop_abandoned_sites` is `true`.
+3. Creates missing sites using Docker-provided root credentials to avoid interactive prompts.
+4. Installs required apps for each site.
+5. Uninstalls apps that are not required for the site (except `frappe`).
+6. Migrates each site after app alignment.
+
+> Sites are automatically kept in sync with `instance.json` on container start. Restart the container to apply changes.
+
 ## Configuration
 
 ### Files
 
-* `instance.json` (repo root) — controls deployment mode, branch, site name and preloaded apps.
-* `common_site_config.json` (repo root) — Frappe-specific site settings (redis urls, socketio port, etc.). The entrypoint copies this file into `sites/common_site_config.json` inside the bench.
-
-> **Note:** `instance.json` lives in the **repository root**. The entrypoint reads it from `/instance.json` inside the container. If you need to change it, edit `./instance.json` in the repo and restart the container.
+* `instance.json` (repo root) — controls deployment mode, sites, apps, and branch.
+* `common_site_config.json` (repo root) — Frappe-specific site settings (redis urls, socketio port, etc.). Copied into `sites/common_site_config.json` inside the bench.
 
 ### Example `instance.json` (repo root)
 
 ```json
 {
-    "deployment": "develop",
-    "preloaded_apps": [
-        "frappe",
-        "erpnext",
-        "hrms"
-    ],  
-    "instance_type": "isolated",
-    "instance_site": "frontend",
+    "deployment": "production",
+    "instance_sites": [
+        {
+            "site_name": "frontend",
+            "apps": ["frappe", "erpnext", "hrms"]
+        },
+        {
+            "site_name": "frontend1",
+            "apps": ["frappe", "erpnext"]
+        }
+    ],
+    "drop_abandoned_sites": true,
     "frappe_branch": "develop"
 }
 ```
 
 * `deployment`: `production` or `development` (controls supervisor/nginx vs `bench start`).
-* `instance_site`: site name created during boot (default: `frontend`).
+* `instance_sites`: array of site objects; each object defines a `site_name` and required `apps`.
+* `drop_abandoned_sites`: if `true`, sites not listed will be dropped automatically.
 * `frappe_branch`: branch used by `bench init` and `bench get-app`.
-* `preloaded_apps`: array of apps to sync with the site.
 
 ### Example `common_site_config.json` (repo root)
 
@@ -85,11 +100,7 @@ This Docker Compose project sets up a full **Frappe development environment** wi
 }
 ```
 
-This file is copied into `frappe-bench/sites/common_site_config.json` by the entrypoint so Frappe uses these Redis URLs and other site settings.
-
 ## Docker Compose Environment Variables (MariaDB)
-
-Define MariaDB credentials in your `docker-compose.yml` for the `mariadb` service and pass them to the `frappe` service as environment variables. Example:
 
 ```yaml
 mariadb:
@@ -109,14 +120,11 @@ frappe:
     MARIADB_DATABASE: frappe
 ```
 
-The entrypoint reads these environment variables and uses the root credentials when calling `bench new-site` to avoid interactive prompts.
-
 ## Running the Project
 
 1. **Build and start containers:**
 
 ```bash
-# from repo root
 docker compose up -d --build
 ```
 
@@ -129,8 +137,7 @@ docker compose logs -f frappe
 3. **Access services:**
 
 * Development: `http://localhost:8000`
-* Production (if using hosts file): `http://<sitename>` (e.g. `http://frontend`)
-* For productions, ensure you edit your hosts file to allow site names to go through
+* Production: `http://<sitename>` (e.g., `http://frontend`) — edit hosts file as needed.
 
 4. **Stop the environment:**
 
@@ -139,8 +146,6 @@ docker compose down
 ```
 
 ## Onboarding Guide
-
-This setup is designed to make onboarding new developers quick and painless.
 
 ### Prerequisites
 
@@ -156,15 +161,14 @@ git clone https://github.com/renniemaharaj/hrtm-frappe
 cd hrtm-frappe
 ```
 
-2. Edit `instance.json` in the repo root if you want custom `instance_site`, branch or `preloaded_apps`.
-
+2. Edit `instance.json` in the repo root for custom sites, apps, or branch.
 3. Start the environment:
 
 ```bash
 docker compose up -d --build
 ```
 
-4. Verify services are running and inspect the entrypoint logs:
+4. Verify services are running and inspect logs:
 
 ```bash
 docker ps
@@ -181,25 +185,15 @@ bench --site frontend migrate
 
 ### Development workflow
 
-* Edit code in `./mount` to modify apps or any files mounted into the container.
-* To change `preloaded_apps` or deployment mode, edit `./instance.json` (repo root) and restart the container to trigger re-sync.
+* Edit code in `./mount` to modify apps or other files mounted into the container.
+* Restart the container after changing `instance.json` to trigger site/app re-sync.
 
 ### Troubleshooting
 
-* Database issues: remove `./mysqldata` to reset MariaDB (careful: deletes data).
-* Redis issues: remove redis volumes and restart the redis containers.
-* Incorrect apps: check `instance.json` — the entrypoint enforces `preloaded_apps` (installs missing apps and uninstalls extras).
+* Database issues: remove `./mysqldata` to reset MariaDB (deletes data).
+* Redis issues: remove Redis volumes and restart containers.
+* Incorrect apps: check `instance.json` — the entrypoint enforces required apps per site.
 * If `bench new-site` prompts for a password, ensure `MARIADB_ROOT_PASSWORD` is set and visible to the `frappe` service.
-
-## App Auto-Alignment
-
-On every boot the entrypoint:
-
-1. Ensures apps listed in `instance.json`'s `preloaded_apps` are present in `frappe-bench/apps` (fetches via `bench get-app` when missing).
-2. Creates the configured site (if missing) using the Docker-provided root credentials.
-3. Installs missing apps on the site and uninstalls any apps that are not part of `preloaded_apps` (except `frappe`).
-
-This guarantees a consistent site/app state across machines and deployments. Restart the `frappe` container after changing `instance.json` to apply changes.
 
 ## Volumes
 

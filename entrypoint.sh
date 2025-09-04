@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # ==========================================
 # Frappe Entrypoint
-# - Reads instance.json for deployment, branch, apps, site
+# - Reads instance.json for deployment, branch, apps, sites
 # - Reads common_site_config.json for Redis and other knobs
 # - Initializes bench, ensures apps, aligns site apps to config
 # - Switches between development (bench start) and production (supervisor+nginx)
@@ -75,16 +75,8 @@ fi
 
 echo "[INFO] Loading instance.json..."
 DEPLOYMENT=$(json_get "$INSTANCE_JSON_SOURCE" '.deployment' 'development')
-INSTANCE_SITE=$(json_get "$INSTANCE_JSON_SOURCE" '.instance_site' 'frontend')
 FRAPPE_BRANCH=$(json_get "$INSTANCE_JSON_SOURCE" '.frappe_branch' 'develop')
 BENCH_DIR="$FRAPPE_HOME/$(json_get "$INSTANCE_JSON_SOURCE" '.frappe_bench' "$BENCH_NAME_DEFAULT")"
-
-# Preloaded apps (array)
-mapfile -t PRELOADED_APPS < <(read_apps_array "$INSTANCE_JSON_SOURCE" '.preloaded_apps')
-# Guard: ensure frappe core is always considered installed, but never "get-app"
-if ! printf '%s\n' "${PRELOADED_APPS[@]:-}" | grep -qx "frappe"; then
-  PRELOADED_APPS=("frappe" "${PRELOADED_APPS[@]:-}")
-fi
 
 # ---------------------------
 # Load service knobs (common_site_config.json) for Redis only
@@ -109,7 +101,7 @@ DB_NAME=${MARIADB_DATABASE:-frappe}
 DB_HOST=${MARIADB_HOST:-mariadb}
 DB_PORT=${MARIADB_PORT:-3306}
 
-# Debug toggles (optional): set to 1 to enforce hard waits, 0 to skip
+# Debug toggles
 WAIT_FOR_DB=${WAIT_FOR_DB:-1}
 WAIT_FOR_REDIS=${WAIT_FOR_REDIS:-1}
 DB_DEBUG=${DB_DEBUG:-0}
@@ -163,62 +155,103 @@ cp "$COMMON_CONFIG_SOURCE" "$COMMON_CONFIG_DEST"
 sudo chown frappe:frappe "$COMMON_CONFIG_DEST"
 
 # ---------------------------
-# Ensure apps exist in bench/apps (skip core frappe)
+# Sites management
 # ---------------------------
-for app in "${PRELOADED_APPS[@]}"; do
-  if [ "$app" = "frappe" ]; then continue; fi
-  if [ ! -d "apps/$app" ]; then
-    echo "[APP] Fetching: $app (branch: $FRAPPE_BRANCH)"
-    if ! bench get-app "$app" --branch "$FRAPPE_BRANCH"; then
-      echo "[WARN] bench get-app $app failed. If this is a private/custom app, ensure remotes are configured."
+echo "[SITES] Syncing sites with instance.json..."
+
+# Initialize sites array (empty by default)
+INSTANCE_SITES=()
+mapfile -t INSTANCE_SITES < <(jq -r '.instance_sites[].site_name // empty' "$INSTANCE_JSON_SOURCE")
+
+# Build a map of site -> apps only if we have sites
+declare -A SITE_APPS
+if [ ${#INSTANCE_SITES[@]} -gt 0 ]; then
+    for site in "${INSTANCE_SITES[@]}"; do
+        apps=$(jq -r --arg s "$site" '.instance_sites[] | select(.site_name==$s) | .preloaded_apps[]?' "$INSTANCE_JSON_SOURCE")
+        SITE_APPS["$site"]="$apps"
+    done
+fi
+
+# Collect current sites based on real directories with site_config.json
+CURRENT_SITES=()
+for dir in sites/*; do
+    if [ -d "$dir" ] && [ -f "$dir/site_config.json" ]; then
+        CURRENT_SITES+=("$(basename "$dir")")
     fi
-  fi
 done
 
-# ---------------------------
-# Create site if missing
-# ---------------------------
-if [ ! -d "sites/$INSTANCE_SITE" ]; then
-    echo "[SITE] Creating: $INSTANCE_SITE"
-    bench new-site "$INSTANCE_SITE" \
-        --db-root-username "$DB_ROOT_USERNAME" \
-        --db-root-password "$DB_ROOT_PASSWORD" \
-        --admin-password admin
+# Get drop toggle from instance.json (default false)
+DROP_ABANDONED_SITES=$(json_get "$INSTANCE_JSON_SOURCE" '.drop_abandoned_sites' 'false')
+
+# Drop sites not in instance.json (only if enabled)
+if [[ "$DROP_ABANDONED_SITES" == "true" ]]; then
+    for site in "${CURRENT_SITES[@]}"; do
+        if [[ ! " ${INSTANCE_SITES[*]} " =~ " $site " ]]; then
+            echo "[SITE] Dropping unlisted site: $site"
+            bench drop-site "$site" --force --root-password "$DB_ROOT_PASSWORD" || echo "[WARN] Failed to drop $site"
+        fi
+    done
+else
+    echo "[SITE] Skipping drop of abandoned sites (drop_abandoned_sites=false)"
 fi
 
-# ---------------------------
-# Align site apps to PRELOADED_APPS
-# ---------------------------
-echo "[APPS] Aligning site apps to preloaded_apps in instance.json..."
-# Get currently installed apps
-current_apps=$(bench --site "$INSTANCE_SITE" list-apps | awk '{print $1}' | sed '/^$/d')
-expected_apps=$(printf '%s\n' "${PRELOADED_APPS[@]}" | sort -u)
-current_sorted=$(printf '%s\n' $current_apps | sort -u)
+# Ensure and align each site
+for site in "${INSTANCE_SITES[@]}"; do
+  echo "[SITE] Processing: $site"
 
-# Install missing apps (skip frappe core)
-missing=$(comm -23 <(echo "$expected_apps") <(echo "$current_sorted"))
-if [ -n "$missing" ]; then
-  echo "[APPS] Installing missing apps: $(echo "$missing" | xargs)"
-  for app in $missing; do
-    [ "$app" = "frappe" ] && continue
-    bench --site "$INSTANCE_SITE" install-app "$app" || echo "[WARN] Failed to install $app"
+  # Create if missing
+  if [ ! -d "sites/$site" ]; then
+    echo "[SITE] Creating: $site"
+    bench new-site "$site" \
+      --db-root-username "$DB_ROOT_USERNAME" \
+      --db-root-password "$DB_ROOT_PASSWORD" \
+      --admin-password admin
+  fi
+
+  # Ensure apps exist in bench/apps (skip frappe)
+  for app in ${SITE_APPS[$site]}; do
+    if [ "$app" = "frappe" ]; then continue; fi
+    if [ ! -d "apps/$app" ]; then
+      echo "[APP] Fetching missing app: $app (branch: $FRAPPE_BRANCH)"
+      bench get-app "$app" --branch "$FRAPPE_BRANCH" || \
+        echo "[WARN] Failed to fetch $app"
+    fi
   done
-fi
 
-extras=$(comm -13 <(echo "$expected_apps") <(echo "$current_sorted") | grep -vx "frappe" || true)
-if [ -n "$extras" ]; then
-  echo "[APPS] Uninstalling extra apps: $(echo "$extras" | xargs)"
-  for app in $extras; do
-    bench --site "$INSTANCE_SITE" uninstall-app "$app" -y || echo "[WARN] Failed to uninstall $app"
-  done
-fi
+  # Align site apps
+  echo "[APPS] Aligning apps for site: $site"
+  current_apps=$(bench --site "$site" list-apps | awk '{print $1}' | sed '/^$/d')
+  expected_apps=$(printf '%s\n' ${SITE_APPS[$site]} | sort -u)
+  current_sorted=$(printf '%s\n' $current_apps | sort -u)
 
-# ---------------------------
-# Migrate and set current site
-# ---------------------------
-echo "[MIGRATE] bench --site $INSTANCE_SITE migrate"
-bench --site "$INSTANCE_SITE" migrate
-bench use "$INSTANCE_SITE"
+  # Install missing apps
+  missing=$(comm -23 <(echo "$expected_apps") <(echo "$current_sorted"))
+  if [ -n "$missing" ]; then
+    echo "[APPS] Installing missing apps: $(echo "$missing" | xargs)"
+    for app in $missing; do
+      [ "$app" = "frappe" ] && continue
+      bench --site "$site" install-app "$app" || echo "[WARN] Failed to install $app"
+    done
+  fi
+
+  # Uninstall extras
+  extras=$(comm -13 <(echo "$expected_apps") <(echo "$current_sorted") | grep -vx "frappe" || true)
+  if [ -n "$extras" ]; then
+    echo "[APPS] Uninstalling extra apps: $(echo "$extras" | xargs)"
+    for app in $extras; do
+      bench --site "$site" uninstall-app "$app" -y || echo "[WARN] Failed to uninstall $app"
+    done
+  fi
+
+  # Migrate
+  echo "[MIGRATE] bench --site $site migrate"
+  bench --site "$site" migrate
+done
+
+# Set last site as current
+if [ ${#INSTANCE_SITES[@]} -gt 0 ]; then
+  bench use "${INSTANCE_SITES[-1]}"
+fi
 
 # ---------------------------
 # Start services
@@ -245,22 +278,12 @@ if [ "$DEPLOYMENT" = "production" ]; then
 
   sudo ln -sf "$BENCH_DIR/config/nginx.conf" /etc/nginx/conf.d/frappe-bench.conf
 
-# ---------------------------
-# Merge wrapper and supervisor configs
- # ---------------------------
   echo "[SUPERVISOR] Merging configs -> $MERGED_SUPERVISOR_CONF"
-    # Create/overwrite merged file
-    sudo bash -c "cat /dev/null > '$MERGED_SUPERVISOR_CONF'"
-    # Append wrapper config
-    # sudo bash -c "cat '$WRAPPER_CONF' >> '$MERGED_SUPERVISOR_CONF'"
-    # echo "" | sudo tee -a "$MERGED_SUPERVISOR_CONF" >/dev/null
-    # Append bench-generated supervisor config
-    # sudo bash -c "cat '$BENCH_DIR/config/supervisor.conf' >> '$MERGED_SUPERVISOR_CONF'"
-    # Ensure frappe owns the merged config
-    # sudo chown frappe:frappe "$MERGED_SUPERVISOR_CONF"
-  sudo bash -c \
-    "cat /dev/null > '$MERGED_SUPERVISOR_CONF' && cat '$WRAPPER_CONF' >> '$MERGED_SUPERVISOR_CONF' && echo >> '$MERGED_SUPERVISOR_CONF' && cat '$BENCH_DIR/config/supervisor.conf' >> '$MERGED_SUPERVISOR_CONF'"
-  echo "[BIN] bench: $(which bench)"; command -v gunicorn >/dev/null && echo "[BIN] gunicorn: $(which gunicorn)" || echo "[BIN] gunicorn: not found"
+  sudo bash -c "cat /dev/null > '$MERGED_SUPERVISOR_CONF'"
+  sudo bash -c "cat /dev/null > '$MERGED_SUPERVISOR_CONF' && cat '$WRAPPER_CONF' >> '$MERGED_SUPERVISOR_CONF' && echo >> '$MERGED_SUPERVISOR_CONF' && cat '$BENCH_DIR/config/supervisor.conf' >> '$MERGED_SUPERVISOR_CONF'"
+
+  echo "[BIN] bench: $(which bench)"
+  command -v gunicorn >/dev/null && echo "[BIN] gunicorn: $(which gunicorn)" || echo "[BIN] gunicorn: not found"
 
   sudo supervisord -n -c "$MERGED_SUPERVISOR_CONF"
 else

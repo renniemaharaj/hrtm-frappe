@@ -1,11 +1,15 @@
 {
-    "deployment": "develop",
-    "preloaded_apps": [
-        "frappe",
-        "erpnext",
-        "hrms"
-    ],  
-    "instance_type": "isolated",
-    "instance_site": "frontend",
+    "deployment": "production", 
+    "instance_sites": [
+        {
+            "site_name": "frontend",
+            "apps": [
+                "frappe",
+                "erpnext",
+                "hrms"
+            ]
+        }
+    ],
+    "drop_abandoned_sites": true,
     "frappe_branch": "develop"
 }
