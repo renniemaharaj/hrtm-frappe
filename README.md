@@ -48,6 +48,8 @@ This setup provides a ready-to-use Frappe environment with a running frontend, d
 * **HRMS**: Human Resource Management System.
 * Both apps are pulled during entrypoint execution if not already present.
 
+  - Configurable app list coming soon!
+
 ## Configuration
 
 Configuration is controlled via a simple JSON file:
@@ -86,19 +88,19 @@ This file is copied into the `sites/` directory during container startup.
 1. **Build the containers:**
 
 ```bash
-docker-compose build
+docker compose build
 ```
 
 2. **Start the containers:**
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 3. **Check logs:**
 
 ```bash
-docker-compose logs -f frappe
+docker compose logs -f frappe
 ```
 
 4. **Access the Frappe frontend:**
@@ -123,6 +125,77 @@ This project also provides a simple **production switch** that runs:
 To use this, you will need to add your sites to the system `hosts` file for proper resolution. This setup makes it possible to serve sites more realistically in production.
 
 ⚠️ **Note:** This production implementation is **not recommended yet** as the project is still in early development. It is, however, a good way to explore running Frappe in a more bare-bones manner with automatic app fetching and initial site installation.
+
+## Onboarding Guide
+
+This setup is designed to make onboarding new developers quick and painless. Follow these steps to get started:
+
+### Prerequisites
+
+* Install **Docker** and **Docker Compose** on your machine.
+* Ensure ports `8000`, `9000`, and `3306` are available.
+
+### Getting Started
+
+1. **Clone the repository:**
+
+```bash
+git clone https://github.com/renniemaharaj/hrtm-frappe
+cd hrtm-frappe
+```
+
+2. **Build and start the environment:**
+
+```bash
+docker-compose up -d --build
+```
+
+3. **Verify services are running:**
+
+```bash
+docker ps # List running docker services
+
+# (eg output) 31053642328a   hrtm-frappe-frappe   "/entrypoint.sh slee…"   5 hours ago   Up 5 hours   0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp, 0.0.0.0:9000->9000/tcp, [::]:9000->9000/tcp   hrtm-frappe-frappe-1
+
+docker exec -it {containerID} bash # containerID -> 31053642328a
+
+cd frappe-bench # & execute bench commands
+```
+
+4. **Access the frontend:**
+
+Open your browser at `http://localhost:8000`. (for develop mode)
+
+Open your browser at http://sitename (eg http://frontend) (for production)
+
+5. **Login credentials:**
+
+Use the admin credentials created during site initialization.
+
+Username: Administrator
+Password: admin
+
+### Development Workflow
+
+* Make changes to Frappe apps in the mounted `./mount` directory.
+* Use `docker-compose exec frappe bash` to open a shell inside the container.
+* Run standard bench commands inside the container, for example:
+
+```bash
+bench --site frontend migrate
+```
+
+### Troubleshooting
+
+* **Database issues:** Remove `./mysqldata` if you want to reset MariaDB.
+* **Redis issues:** Remove redis volumes (`redis-cache`, `redis-queue`, `redis-socketio`) and restart.
+* **Logs:** Use `docker-compose logs -f frappe` to debug container startup.
+
+### Notes for New Developers
+
+* This environment is both development and production-ready.
+* Avoid editing core Frappe code directly—extend functionality through apps.
+* For production deployments, coordinate with your team before exposing services.
 
 ## Notes
 
