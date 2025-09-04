@@ -8,6 +8,13 @@
                 "erpnext",
                 "hrms"
             ]
+        },
+        {
+            "site_name": "frontend1",
+            "apps": [
+                "frappe",
+                "erpnext"
+            ]
         }
     ],
     "drop_abandoned_sites": true,

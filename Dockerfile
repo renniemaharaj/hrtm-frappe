@@ -102,8 +102,10 @@ COPY common_site_config.json /common_site_config.json
 COPY entrypoint.sh /entrypoint.sh
 COPY supervisor.conf /supervisor.conf
 COPY nginx/main.patch.conf /main.patch.conf
+COPY /scripts /scripts
 
-RUN chown frappe:frappe /instance.json /common_site_config.json /entrypoint.sh /supervisor.conf /main.patch.conf
+RUN chown frappe:frappe /instance.json /common_site_config.json /entrypoint.sh /supervisor.conf /main.patch.conf /scripts \
+    && chmod +x /entrypoint.sh /scripts/*.sh
 
 USER frappe
 WORKDIR /home/frappe
