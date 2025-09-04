@@ -2,211 +2,207 @@
 
 ## Overview
 
-This Docker Compose project sets up a full Frappe development environment, including:
+This Docker Compose project sets up a full **Frappe development environment** with automatic app management:
 
 * **Frappe Framework** (branch configurable, default `develop`)
-* **ERPNext** (preloaded app)
-* **HRMS** (preloaded app)
-* **MariaDB 11** for database
-* **Redis** for caching, queue, and Socket.IO communication
+* **ERPNext** and **HRMS** (preloaded apps)
+* **MariaDB**
+* **Redis** (cache, queue, socketio)
+* **Site auto-creation** based on `instance.json` in the repository root
+* **App alignment**: site apps are automatically synced with the `preloaded_apps` list from `instance.json`.
 
-This setup provides a ready-to-use Frappe environment with a running frontend, database, and Redis services. It supports both development and production modes.
+## Features
 
-## Services
+* **Zero manual steps** after first run — sites and apps are provisioned automatically.
+* **App sync logic**:
 
-### 1. Frappe
+  * Apps listed in `preloaded_apps` are always installed on the site.
+  * Apps not in `preloaded_apps` are uninstalled (except `frappe`).
+  * Ensures environments are consistent across containers.
+* **Optimized entrypoint**:
 
-* Builds from the provided `Dockerfile`.
-* Mounts the local `./mount` directory to `/home/frappe`.
-* Exposes port `8000` for the web interface.
-* Depends on MariaDB and Redis services.
-* Initializes Frappe Bench if it does not exist.
-* Pulls ERPNext and HRMS apps if not already present.
-* Creates a site (configurable, default `frontend`) if it does not exist.
-* Uses `common_site_config.json` to configure database and Redis connections.
-* Starts the Bench, which runs Frappe and all background workers including Socket.IO.
-
-### 2. MariaDB
-
-* Container: `frappe_mariadb`
-* Image: `mariadb:11`
-* Stores data in a persistent volume (`./mysqldata`).
-* Environment variables set for root user and Frappe database credentials.
-* Character set: `utf8mb4`, collation: `utf8mb4_unicode_ci`.
-
-### 3. Redis
-
-* **redis-cache**: caching layer
-* **redis-queue**: background job queue
-* **redis-socketio**: Socket.IO pub/sub
-* Each Redis instance has a dedicated container and persistent volume.
-* Configured in `common_site_config.json`.
-
-## Preloaded Apps
-
-* **ERPNext**: Core ERP functionality.
-* **HRMS**: Human Resource Management System.
-* Both apps are pulled during entrypoint execution if not already present.
-
-  - Configurable app list coming soon!
+  * Waits for MariaDB and Redis to be healthy before starting services.
+  * Uses Docker environment variables for MariaDB credentials.
+  * Parses `common_site_config.json` for Redis URLs using `jq`.
 
 ## Configuration
 
-Configuration is controlled via a simple JSON file:
+### Files
+
+* `instance.json` (repo root) — controls deployment mode, branch, site name and preloaded apps.
+* `common_site_config.json` (repo root) — Frappe-specific site settings (redis urls, socketio port, etc.). The entrypoint copies this file into `sites/common_site_config.json` inside the bench.
+
+> **Note:** `instance.json` lives in the **repository root**. The entrypoint reads it from `/instance.json` inside the container. If you need to change it, edit `./instance.json` in the repo and restart the container.
+
+### Example `instance.json` (repo root)
 
 ```json
 {
-  "deployment": "production",
-  "instance_type": "isolated",
-  "instance_site": "frontend",
-  "frappe_branch": "develop"
+    "deployment": "develop",
+    "preloaded_apps": [
+        "frappe",
+        "erpnext",
+        "hrms"
+    ],  
+    "instance_type": "isolated",
+    "instance_site": "frontend",
+    "frappe_branch": "develop"
 }
 ```
 
-* **deployment**: `production` or `develop` mode
-* **instance\_type**: currently `isolated`
-* **instance\_site**: site name (default: `frontend`)
-* **frappe\_branch**: branch of the Frappe framework to use (default: `develop`)
+* `deployment`: `production` or `development` (controls supervisor/nginx vs `bench start`).
+* `instance_site`: site name created during boot (default: `frontend`).
+* `frappe_branch`: branch used by `bench init` and `bench get-app`.
+* `preloaded_apps`: array of apps to sync with the site.
 
-The `common_site_config.json` file sets the site-specific configuration for Frappe, including database connection and Redis URLs:
+### Example `common_site_config.json` (repo root)
 
 ```json
 {
-  "db_name": "frontend",
+  "db_name": "frappe",
+  "db_password": "frappe",
+  "db_host": "mariadb",
+  "db_user": "frappe",
+  "db_port": 3306,
   "redis_cache": "redis://redis-cache:6379",
   "redis_queue": "redis://redis-queue:6379",
   "redis_socketio": "redis://redis-socketio:6379",
   "redis_socketio_channel": "redis_socketio",
-  "socketio_port": 9000
+  "socketio_port": 9000,
+  "developer_mode": 1,
+  "backup_limit": 5,
+  "file_watcher_port": 6787,
+  "frappe_user": "frappe",
+  "email_sender": "no-reply@example.com",
+  "realtime_enabled": true,
+  "max_workers": 4,
+  "max_celery_workers": 8,
+  "worker_timeout": 300,
+  "log_level": "INFO",
+  "auto_email_id": "admin@example.com",
+  "max_file_size": 52428800,
+  "allow_guests": false
 }
 ```
 
-This file is copied into the `sites/` directory during container startup.
+This file is copied into `frappe-bench/sites/common_site_config.json` by the entrypoint so Frappe uses these Redis URLs and other site settings.
+
+## Docker Compose Environment Variables (MariaDB)
+
+Define MariaDB credentials in your `docker-compose.yml` for the `mariadb` service and pass them to the `frappe` service as environment variables. Example:
+
+```yaml
+mariadb:
+  image: mariadb:11
+  environment:
+    MARIADB_ROOT_PASSWORD: root
+    MARIADB_USER: frappe
+    MARIADB_PASSWORD: frappe
+    MARIADB_DATABASE: frappe
+
+frappe:
+  environment:
+    MARIADB_ROOT_PASSWORD: root
+    MARIADB_ROOT_USERNAME: root
+    MARIADB_USER: frappe
+    MARIADB_PASSWORD: frappe
+    MARIADB_DATABASE: frappe
+```
+
+The entrypoint reads these environment variables and uses the root credentials when calling `bench new-site` to avoid interactive prompts.
 
 ## Running the Project
 
-1. **Build the containers:**
+1. **Build and start containers:**
 
 ```bash
-docker compose build
+# from repo root
+docker compose up -d --build
 ```
 
-2. **Start the containers:**
-
-```bash
-docker compose up -d
-```
-
-3. **Check logs:**
+2. **Check logs:**
 
 ```bash
 docker compose logs -f frappe
 ```
 
-4. **Access the Frappe frontend:**
+3. **Access services:**
 
-* Open your browser and navigate to `http://localhost:8000`.
-* Log in with the admin credentials defined during site creation.
+* Development: `http://localhost:8000`
+* Production (if using hosts file): `http://<sitename>` (e.g. `http://frontend`)
+* For productions, ensure you edit your hosts file to allow site names to go through
 
-5. **Stop the environment:**
+4. **Stop the environment:**
 
 ```bash
-docker-compose down
+docker compose down
 ```
-
-## Production Usage
-
-This project also provides a simple **production switch** that runs:
-
-* **supervisord** – process manager
-* **gunicorn** – Python WSGI HTTP server
-* **nginx** – reverse proxy serving your Frappe sites
-
-To use this, you will need to add your sites to the system `hosts` file for proper resolution. This setup makes it possible to serve sites more realistically in production.
-
-⚠️ **Note:** This production implementation is **not recommended yet** as the project is still in early development. It is, however, a good way to explore running Frappe in a more bare-bones manner with automatic app fetching and initial site installation.
 
 ## Onboarding Guide
 
-This setup is designed to make onboarding new developers quick and painless. Follow these steps to get started:
+This setup is designed to make onboarding new developers quick and painless.
 
 ### Prerequisites
 
-* Install **Docker** and **Docker Compose** on your machine.
-* Ensure ports `8000`, `9000`, and `3306` are available.
+* Docker & Docker Compose installed.
+* Ports `8000`, `9000`, and `3306` available.
 
-### Getting Started
+### Quick start (first time)
 
-1. **Clone the repository:**
+1. Clone the repo:
 
 ```bash
 git clone https://github.com/renniemaharaj/hrtm-frappe
 cd hrtm-frappe
 ```
 
-2. **Build and start the environment:**
+2. Edit `instance.json` in the repo root if you want custom `instance_site`, branch or `preloaded_apps`.
+
+3. Start the environment:
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
-3. **Verify services are running:**
+4. Verify services are running and inspect the entrypoint logs:
 
 ```bash
-docker ps # List running docker services
-
-# (eg output) 31053642328a   hrtm-frappe-frappe   "/entrypoint.sh slee…"   5 hours ago   Up 5 hours   0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp, 0.0.0.0:9000->9000/tcp, [::]:9000->9000/tcp   hrtm-frappe-frappe-1
-
-docker exec -it {containerID} bash # containerID -> 31053642328a
-
-cd frappe-bench # & execute bench commands
+docker ps
+docker compose logs -f frappe
 ```
 
-4. **Access the frontend:**
-
-Open your browser at `http://localhost:8000`. (for develop mode)
-
-Open your browser at http://sitename (eg http://frontend) (for production)
-
-5. **Login credentials:**
-
-Use the admin credentials created during site initialization.
-
-Username: Administrator
-Password: admin
-
-### Development Workflow
-
-* Make changes to Frappe apps in the mounted `./mount` directory.
-* Use `docker-compose exec frappe bash` to open a shell inside the container.
-* Run standard bench commands inside the container, for example:
+5. Enter the container for manual bench commands (if required):
 
 ```bash
+docker compose exec frappe bash
+cd frappe-bench
 bench --site frontend migrate
 ```
 
+### Development workflow
+
+* Edit code in `./mount` to modify apps or any files mounted into the container.
+* To change `preloaded_apps` or deployment mode, edit `./instance.json` (repo root) and restart the container to trigger re-sync.
+
 ### Troubleshooting
 
-* **Database issues:** Remove `./mysqldata` if you want to reset MariaDB.
-* **Redis issues:** Remove redis volumes (`redis-cache`, `redis-queue`, `redis-socketio`) and restart.
-* **Logs:** Use `docker-compose logs -f frappe` to debug container startup.
+* Database issues: remove `./mysqldata` to reset MariaDB (careful: deletes data).
+* Redis issues: remove redis volumes and restart the redis containers.
+* Incorrect apps: check `instance.json` — the entrypoint enforces `preloaded_apps` (installs missing apps and uninstalls extras).
+* If `bench new-site` prompts for a password, ensure `MARIADB_ROOT_PASSWORD` is set and visible to the `frappe` service.
 
-### Notes for New Developers
+## App Auto-Alignment
 
-* This environment is both development and production-ready.
-* Avoid editing core Frappe code directly—extend functionality through apps.
-* For production deployments, coordinate with your team before exposing services.
+On every boot the entrypoint:
 
-## Notes
+1. Ensures apps listed in `instance.json`'s `preloaded_apps` are present in `frappe-bench/apps` (fetches via `bench get-app` when missing).
+2. Creates the configured site (if missing) using the Docker-provided root credentials.
+3. Installs missing apps on the site and uninstalls any apps that are not part of `preloaded_apps` (except `frappe`).
 
-* The `entrypoint.sh` script handles initialization of Frappe, pulling apps, creating the site, copying the `common_site_config.json`, and waiting for MariaDB and Redis services.
-* Bench and Frappe services are started automatically on container startup.
-* Socket.IO communication is available on port `9000` for real-time updates.
+This guarantees a consistent site/app state across machines and deployments. Restart the `frappe` container after changing `instance.json` to apply changes.
 
 ## Volumes
 
 * `mysqldata`: MariaDB persistent storage
 * `redis-cache`, `redis-queue`, `redis-socketio`: Redis persistent storage
 * `mount`: Frappe workspace mount for local edits
-
-This setup ensures that your environment persists across container restarts while keeping Frappe, ERPNext, and HRMS ready to use.
