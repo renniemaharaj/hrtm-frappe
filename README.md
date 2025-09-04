@@ -4,13 +4,13 @@
 
 This Docker Compose project sets up a full Frappe development environment, including:
 
-* **Frappe Framework** (latest `develop` branch)
+* **Frappe Framework** (branch configurable, default `develop`)
 * **ERPNext** (preloaded app)
 * **HRMS** (preloaded app)
 * **MariaDB 11** for database
 * **Redis** for caching, queue, and Socket.IO communication
 
-This setup provides a ready-to-use Frappe development environment with a running frontend, database, and Redis services.
+This setup provides a ready-to-use Frappe environment with a running frontend, database, and Redis services. It supports both development and production modes.
 
 ## Services
 
@@ -22,7 +22,7 @@ This setup provides a ready-to-use Frappe development environment with a running
 * Depends on MariaDB and Redis services.
 * Initializes Frappe Bench if it does not exist.
 * Pulls ERPNext and HRMS apps if not already present.
-* Creates a site (`frontend`) if it does not exist.
+* Creates a site (configurable, default `frontend`) if it does not exist.
 * Uses `common_site_config.json` to configure database and Redis connections.
 * Starts the Bench, which runs Frappe and all background workers including Socket.IO.
 
@@ -49,6 +49,22 @@ This setup provides a ready-to-use Frappe development environment with a running
 * Both apps are pulled during entrypoint execution if not already present.
 
 ## Configuration
+
+Configuration is controlled via a simple JSON file:
+
+```json
+{
+  "deployment": "production",
+  "instance_type": "isolated",
+  "instance_site": "frontend",
+  "frappe_branch": "develop"
+}
+```
+
+* **deployment**: `production` or `develop` mode
+* **instance\_type**: currently `isolated`
+* **instance\_site**: site name (default: `frontend`)
+* **frappe\_branch**: branch of the Frappe framework to use (default: `develop`)
 
 The `common_site_config.json` file sets the site-specific configuration for Frappe, including database connection and Redis URLs:
 
@@ -110,7 +126,7 @@ To use this, you will need to add your sites to the system `hosts` file for prop
 
 ## Notes
 
-* The `entrypoint.sh` script handles the initialization of Frappe, pulling apps, creating the site, copying the `common_site_config.json`, and waiting for MariaDB and Redis services.
+* The `entrypoint.sh` script handles initialization of Frappe, pulling apps, creating the site, copying the `common_site_config.json`, and waiting for MariaDB and Redis services.
 * Bench and Frappe services are started automatically on container startup.
 * Socket.IO communication is available on port `9000` for real-time updates.
 
@@ -120,4 +136,4 @@ To use this, you will need to add your sites to the system `hosts` file for prop
 * `redis-cache`, `redis-queue`, `redis-socketio`: Redis persistent storage
 * `mount`: Frappe workspace mount for local edits
 
-This setup ensures that your development environment persists across container restarts while keeping Frappe, ERPNext, and HRMS ready to use.
+This setup ensures that your environment persists across container restarts while keeping Frappe, ERPNext, and HRMS ready to use.
