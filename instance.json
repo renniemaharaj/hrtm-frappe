@@ -1,6 +1,6 @@
 {
     "deployment": "production",
     "instance_type": "isolated",
-    "instance_site": "frontend3",
+    "instance_site": "frontend",
     "frappe_branch": "develop"
 }

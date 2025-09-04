@@ -96,6 +96,18 @@ docker-compose logs -f frappe
 docker-compose down
 ```
 
+## Production Usage
+
+This project also provides a simple **production switch** that runs:
+
+* **supervisord** – process manager
+* **gunicorn** – Python WSGI HTTP server
+* **nginx** – reverse proxy serving your Frappe sites
+
+To use this, you will need to add your sites to the system `hosts` file for proper resolution. This setup makes it possible to serve sites more realistically in production.
+
+⚠️ **Note:** This production implementation is **not recommended yet** as the project is still in early development. It is, however, a good way to explore running Frappe in a more bare-bones manner with automatic app fetching and initial site installation.
+
 ## Notes
 
 * The `entrypoint.sh` script handles the initialization of Frappe, pulling apps, creating the site, copying the `common_site_config.json`, and waiting for MariaDB and Redis services.
