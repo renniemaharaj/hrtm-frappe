@@ -5,12 +5,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: frappe_app
     working_dir: /home/frappe
-    command: sleep infinity
+    # command: sleep infinity # For debugging
+    entrypoint: ["bash", "/entrypoint.sh"]
+    restart: always
     volumes:
       - ./mount:/home/frappe
     ports:
+      - "80:80"          # Nginx
       - "8000:8000"        # Frappe web
       - "9000:9000"        # Socket.IO port (matches common_site_config.json)
     depends_on:
@@ -18,10 +20,11 @@ services:
       - redis-cache
       - redis-queue
       - redis-socketio
+    networks:
+      - frappe_net
 
   mariadb:
     image: mariadb:11
-    container_name: frappe_mariadb
     restart: always
     environment:
       MARIADB_ROOT_PASSWORD: root
@@ -33,31 +36,47 @@ services:
       --collation-server=utf8mb4_unicode_ci
     volumes:
       - ./mysqldata:/var/lib/mysql
+    networks:
+      - frappe_net
 
   redis-cache:
     image: redis:7
-    container_name: frappe_redis_cache
     restart: always
     volumes:
       - ./redis-cache:/data
+    networks:
+      - frappe_net
 
   redis-queue:
     image: redis:7
-    container_name: frappe_redis_queue
     restart: always
     volumes:
       - ./redis-queue:/data
+    networks:
+      - frappe_net
 
   redis-socketio:
     image: redis:7
-    container_name: frappe_redis_socketio
     restart: always
     volumes:
       - ./redis-socketio:/data
+    networks:
+      - frappe_net
 
-volumes:
-  mysqldata:
-  redis-cache:
-  redis-queue:
-  redis-socketio:
-  mount:
+  # nginx:
+  #   build:
+  #     context: ./nginx
+  #   restart: always
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - frappe
+  #   networks:
+  #     - frappe_net
+  #   environment:
+  #     - BACKEND=frappe:8000
+  #     - SOCKETIO=frappe:9000
+
+networks:
+  frappe_net:
+    driver: bridge
