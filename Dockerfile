@@ -93,24 +93,27 @@ RUN apt-get update && \
     PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install supervisor
 
 
+# Install Go
+RUN apt-get update && apt-get install -y golang-go && rm -rf /var/lib/apt/lists/*
+
+ # Build entrypoint binary
+WORKDIR /goftw
+COPY /goftw/ /goftw
+RUN cd /goftw/cmd && go build -o /usr/local/bin/goftw-entry
 
 # ---------------------------
 # Copy instance and config files
 # ---------------------------
 COPY instance.json /instance.json
 COPY common_site_config.json /common_site_config.json
-COPY entrypoint.sh /entrypoint.sh
+# COPY entrypoint.sh /entrypoint.sh
 COPY supervisor.conf /supervisor.conf
 COPY nginx/main.patch.conf /main.patch.conf
+COPY /entrypoint.sh /entrypoint.sh
 COPY /scripts /scripts
 
-RUN chown frappe:frappe /instance.json /common_site_config.json /entrypoint.sh /supervisor.conf /main.patch.conf /scripts \
-    && chmod +x /entrypoint.sh /scripts/*.sh
+RUN chown frappe:frappe /instance.json /common_site_config.json /supervisor.conf /main.patch.conf /scripts /entrypoint.sh \
+    && chmod +x /scripts/*.sh /entrypoint.sh
 
 USER frappe
 WORKDIR /home/frappe
-
-# ---------------------------
-# Entrypoint
-# ---------------------------
-# ENTRYPOINT ["/entrypoint.sh"]

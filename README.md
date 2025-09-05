@@ -2,7 +2,12 @@
 
 ## Overview
 
-This Docker Compose project sets up a full **Frappe development environment** with automatic app management:
+This Docker Compose project sets up a full **Frappe development environment** with automatic app management. You can choose between two implementations:
+
+* **Go-based implementation** (recommended): Handles remote control, microservices, extensions, and automations. Powers site/app management and integrates with system services.
+* **Shell script implementation**: Lightweight alternative for direct shell usage. Fully maintained in parallel with the Go version.
+
+### Services Included
 
 * **Frappe Framework** (branch configurable, default `develop`)
 * **ERPNext** and other site-specific apps
@@ -24,10 +29,14 @@ This Docker Compose project sets up a full **Frappe development environment** wi
   * Waits for MariaDB and Redis to be healthy before starting services.
   * Uses Docker environment variables for MariaDB credentials.
   * Parses `common_site_config.json` for Redis URLs using `jq`.
+* **Dual implementation**:
+
+  * **Go binary** (`goftw`): handles automation, remote control, and advanced workflows.
+  * **Shell script**: continues to provide a simple, direct alternative.
 
 ## Site Auto-Management
 
-The entrypoint handles site management automatically:
+The entrypoint (Go or shell) handles site management automatically:
 
 1. Reads `instance.json` to get the list of sites and their required apps.
 2. Optionally drops abandoned sites if `drop_abandoned_sites` is `true`.
@@ -187,6 +196,7 @@ bench --site frontend migrate
 
 * Edit code in `./mount` to modify apps or other files mounted into the container.
 * Restart the container after changing `instance.json` to trigger site/app re-sync.
+* Choose between **Go** or **Shell** entrypoint depending on workflow needs.
 
 ### Troubleshooting
 

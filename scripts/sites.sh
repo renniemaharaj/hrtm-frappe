@@ -11,7 +11,7 @@ mapfile -t INSTANCE_SITES < <(jq -r '.instance_sites[].site_name // empty' "$INS
 declare -A SITE_APPS
 if [ ${#INSTANCE_SITES[@]} -gt 0 ]; then
     for site in "${INSTANCE_SITES[@]}"; do
-        apps=$(jq -r --arg s "$site" '.instance_sites[] | select(.site_name==$s) | .preloaded_apps[]?' "$INSTANCE_JSON_SOURCE")
+        apps=$(jq -r --arg s "$site" '.instance_sites[] | select(.site_name==$s) | .apps[]?' "$INSTANCE_JSON_SOURCE")
         SITE_APPS["$site"]="$apps"
     done
 fi

@@ -5,15 +5,16 @@
             "site_name": "frontend",
             "apps": [
                 "frappe",
-                "erpnext",
-                "hrms"
+                "erpnext"
+                
             ]
         },
         {
-            "site_name": "frontend1",
+            "site_name": "fontend1",
             "apps": [
                 "frappe",
-                "erpnext"
+                "erpnext",
+                "hrms"
             ]
         }
     ],

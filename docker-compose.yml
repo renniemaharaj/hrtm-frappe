@@ -7,7 +7,8 @@ services:
       dockerfile: Dockerfile
     working_dir: /home/frappe
     # command: sleep infinity # For debugging
-    entrypoint: ["bash", "/entrypoint.sh"]
+    # entrypoint: ["/usr/local/bin/goftw-entry"]
+    entrypoint: ["/entrypoint.sh"]
     environment:
       MARIADB_ROOT_PASSWORD: root
       MARIADB_ROOT_USERNAME: root
