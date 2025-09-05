@@ -30,19 +30,22 @@ func main() {
 	// ---------------------------
 	// Load configs
 	// ---------------------------
-	instanceCfg, err := config.LoadInstance(environ.GetInstanceFile())
+
+	// Load instance.json
+	instanceCfx, err := config.LoadInstance(environ.GetInstanceFile())
 	if err != nil {
 		log.Fatalf("failed to load instance.json: %v", err)
 		os.Exit(1)
 	}
 
+	// Load common_site_config.json
 	commonCfg, err := config.LoadCommonSitesConfig(environ.GetCommonSitesConfig())
 	if err != nil {
 		log.Fatalf("failed to load common_site_config.json: %v", err)
 		os.Exit(1)
 	}
 	benchDir := environ.GetFrappeBenchPath()
-	deployment := instanceCfg.Deployment
+	deployment := instanceCfx.Deployment
 
 	// ---------------------------
 	// Wait for DB
@@ -67,10 +70,9 @@ func main() {
 	// ---------------------------
 	// Initialize Bench if not exists
 	// ---------------------------
-	// First check if benchDir exists
 	if _, err := os.Stat(benchDir); os.IsNotExist(err) {
 		log.Printf("bench directory %s does not exist, initializing...", benchDir)
-		if err := bench.Initialize(environ.GetFrappeBenchName(), instanceCfg.FrappeBranch); err != nil {
+		if err := bench.Initialize(environ.GetFrappeBenchName(), instanceCfx.FrappeBranch); err != nil {
 			log.Fatalf("bench init failed: %v", err)
 		}
 	} else {
@@ -85,9 +87,9 @@ func main() {
 	}
 
 	// ---------------------------
-	// Sync sites
+	// Checkout sites for anomalies and missing sites
 	// ---------------------------
-	if err := sites.SyncSites(instanceCfg, benchDir, dbCfg.User, dbCfg.Password); err != nil {
+	if err := sites.CheckoutSites(instanceCfx, benchDir, dbCfg.User, dbCfg.Password); err != nil {
 		log.Fatalf("sites sync failed: %v", err)
 	}
 

@@ -8,7 +8,7 @@ import (
 // Initialize initializes a new bench with the given name and frappe branch
 func Initialize(benchName, frappeBranch string) error {
 	// Initialize the bench with the given name
-	_, err := exec.RunSwallowIO("bench", "init", "--frappe-branch", frappeBranch, benchName)
+	err := exec.RunPrintIO("bench", "init", "--frappe-branch", frappeBranch, benchName)
 	if err != nil {
 		fmt.Printf("[ERROR] Bench initialization failed: %v\n", err)
 		return err

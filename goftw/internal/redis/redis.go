@@ -2,9 +2,10 @@ package redis
 
 import (
 	"fmt"
-	"os/exec"
 	"regexp"
 	"time"
+
+	internalExec "goftw/internal/exec"
 )
 
 type Config struct {
@@ -16,8 +17,7 @@ type Config struct {
 // parse host/port from redis://host:port
 func parseHostPort(url string) (string, string) {
 	re := regexp.MustCompile(`redis://([^:]+):?([0-9]*)`)
-	matches := re.FindStringSubmatch(url)
-	if len(matches) == 3 {
+	if matches := re.FindStringSubmatch(url); len(matches) == 3 {
 		port := matches[2]
 		if port == "" {
 			port = "6379"
@@ -33,17 +33,18 @@ func WaitForRedis(cfg Config) error {
 		return nil
 	}
 	host, port := parseHostPort(cfg.URL)
-	fmt.Printf("[WAIT] Redis at %s:%s...\n", host, port)
+	if host == "" || port == "" {
+		return fmt.Errorf("invalid redis url: %s", cfg.URL)
+	}
 
+	fmt.Printf("[REDIS] waiting for Redis at %s:%s...\n", host, port)
 	for {
-		cmd := exec.Command("redis-cli", "-h", host, "-p", port, "ping")
-		err := cmd.Run()
-		if err == nil {
-			fmt.Printf("[OK] Redis %s:%s reachable.\n", host, port)
+		if _, err := internalExec.RunSwallowIO("redis-cli", "-h", host, "-p", port, "ping"); err == nil {
+			fmt.Printf("[REDIS] Redis %s:%s reachable.\n", host, port)
 			return nil
 		}
 		if cfg.Debug {
-			fmt.Printf("[DEBUG][REDIS %s:%s] waiting...\n", host, port)
+			fmt.Printf("[REDIS] [%s:%s] waiting...\n", host, port)
 		}
 		time.Sleep(2 * time.Second)
 	}

@@ -22,7 +22,7 @@ func WaitForDB(cfg Config) error {
 		return nil
 	}
 
-	fmt.Printf("[WAIT] MariaDB at %s:%s...\n", cfg.Host, cfg.Port)
+	fmt.Printf("[Database] Waiting for MariaDB at %s:%s...\n", cfg.Host, cfg.Port)
 	for {
 		_, err := internalExec.RunSwallowIO(
 			"mysqladmin",

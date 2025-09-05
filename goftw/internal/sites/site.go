@@ -18,17 +18,16 @@ type AppInfo struct {
 	Raw     string // original line
 }
 
-// RunOnSite runs a bench command for a specific site.
-func RunOnSite(site string, args ...string) error {
+// ShortHandRunOnSite runs a bench command for a specific site handling the --site argument.
+func ShortHandRunOnSite(site string, args ...string) error {
 	err := bench.RunInBenchPrintIO(append([]string{"--site", site}, args...)...)
 	return err
 }
 
 // CheckoutSite ensures a site exists and is properly configured.
 func CheckoutSite(site config.InstanceSite, benchDir, dbRootUser, dbRootPass string) error {
-	sitePath := filepath.Join(benchDir, "sites", site.SiteName)
-	if _, err := os.Stat(sitePath); os.IsNotExist(err) {
-		fmt.Printf("[SITE] Creating: %s\n", site.SiteName)
+	if _, err := os.Stat(filepath.Join(benchDir, "sites", site.SiteName)); os.IsNotExist(err) {
+		fmt.Printf("[SITES] Creating: %s\n", site.SiteName)
 		if err := New(site.SiteName, dbRootUser, dbRootPass); err != nil {
 			fmt.Printf("[ERROR] Failed to create site %s: %v\n", site.SiteName, err)
 			return err

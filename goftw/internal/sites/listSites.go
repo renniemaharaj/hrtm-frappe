@@ -7,6 +7,7 @@ import (
 )
 
 var (
+	// Directories to skip when listing sites
 	skipSiteDirs = []string{
 		"assets",
 	}
