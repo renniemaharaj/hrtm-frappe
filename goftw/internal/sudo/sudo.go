@@ -6,7 +6,7 @@ import (
 )
 
 // RunInBench runs a command in the given benchDir with sudo and returns its output and error.
-func RunReadIO(args ...string) ([]byte, error) {
+func RunSwallowIO(args ...string) ([]byte, error) {
 	cmd := exec.Command("sudo", args...)
 	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()

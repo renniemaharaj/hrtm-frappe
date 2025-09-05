@@ -1,3 +1,17 @@
+# ---------------------------
+# Stage 1: Go Builder
+# ---------------------------
+FROM golang:1.24-alpine AS go-builder
+
+WORKDIR /app
+COPY /goftw /app/goftw
+
+WORKDIR /app/goftw/cmd/
+RUN go build -o /goftw-entry
+
+# ---------------------------
+# Stage 2: Final Runtime
+# ---------------------------
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -92,21 +106,16 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install supervisor
 
-
-# Install Go
-RUN apt-get update && apt-get install -y golang-go && rm -rf /var/lib/apt/lists/*
-
- # Build entrypoint binary
-WORKDIR /goftw
-COPY /goftw/ /goftw
-RUN cd /goftw/cmd && go build -o /usr/local/bin/goftw-entry
+# ---------------------------
+# Copy Go binary from builder
+# ---------------------------
+COPY --from=go-builder /goftw-entry /usr/local/bin/goftw-entry
 
 # ---------------------------
 # Copy instance and config files
 # ---------------------------
 COPY instance.json /instance.json
 COPY common_site_config.json /common_site_config.json
-# COPY entrypoint.sh /entrypoint.sh
 COPY supervisor.conf /supervisor.conf
 COPY nginx/main.patch.conf /main.patch.conf
 COPY /entrypoint.sh /entrypoint.sh

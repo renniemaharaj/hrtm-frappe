@@ -3,15 +3,15 @@ package deployment
 import (
 	"fmt"
 
+	"goftw/internal/bench"
 	"goftw/internal/environ"
-	internalExec "goftw/internal/exec"
 	"goftw/internal/supervisor"
 )
 
 // RunDevelopment starts the bench in development mode (bench start)
 func RunDevelopment() error {
 	fmt.Println("[MODE] DEVELOPMENT")
-	_, err := internalExec.ExecuteCommand("bench", "start")
+	err := bench.RunInBenchPrintIO("start")
 	return err
 }
 

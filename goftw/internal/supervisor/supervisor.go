@@ -50,7 +50,6 @@ func SetupSupervisor(benchDir string) error {
 		return err
 	}
 
-	defer sudo.RemoveFile(tmpFile) // best effort
 	fmt.Printf("[SUPERVISOR] Started supervisord\n")
 	return nil
 }
@@ -58,41 +57,37 @@ func SetupSupervisor(benchDir string) error {
 // SetupNginx sets up nginx using bench and symlinks the config.
 func SetupNginx(benchDir string) error {
 	nginxConf := benchDir + "/config/nginx.conf"
-	nginxPatch := "/main.patch.conf"
-	mergedConf := "/tmp/nginx-merged.tmp"
+	nginxConfDest := "/etc/nginx/conf.d/frappe-bench.conf"
+	mainPatch := "/main.patch.conf"
+	globalConf := "/etc/nginx/nginx.conf"
 
-	// Remove old config to force regeneration
+	// Remove old configs/links to force regeneration
 	_ = sudo.RemoveFile(nginxConf)
-	_ = sudo.RemoveFile("/etc/nginx/conf.d/frappe-bench.conf")
+	_ = sudo.RemoveFile(nginxConfDest)
 
+	// Generate nginx config
 	if err := bench.RunInBenchPrintIO("setup", "nginx"); err != nil {
 		fmt.Printf("[ERROR] Failed to setup nginx: %v\n", err)
 		return fmt.Errorf("failed to setup nginx: %v", err)
 	}
 
-	// Patch nginx config by merging patch and bench config
-	patch, err := sudo.ReadFile(nginxPatch)
-	if err != nil {
-		fmt.Printf("[ERROR] Failed to read nginx patch: %v\n", err)
-		return fmt.Errorf("failed to read nginx patch: %v", err)
-	}
-	benchConf, err := sudo.ReadFile(nginxConf)
-	if err != nil {
-		fmt.Printf("[ERROR] Failed to read nginx config: %v\n", err)
-		return fmt.Errorf("failed to read nginx config: %v", err)
-	}
-	merged := append(patch, append([]byte("\n"), benchConf...)...)
-	if err := os.WriteFile(mergedConf, merged, 0644); err != nil {
-		fmt.Printf("[ERROR] Failed to write merged nginx config: %v\n", err)
-		return fmt.Errorf("failed to write merged nginx config: %v", err)
+	// Inject patch into global nginx.conf if not already present
+	checkCmd := []string{"grep", "-q", "log_format main", globalConf}
+	if err := sudo.RunPrintIO(checkCmd...); err != nil {
+		fmt.Printf("[PATCH] Injecting main log_format into %s\n", globalConf)
+		if err := sudo.RunPrintIO("sed", "-i", "/http {/r "+mainPatch, globalConf); err != nil {
+			fmt.Printf("[ERROR] Failed to inject main.patch.conf: %v\n", err)
+			// not fatal — continue
+		}
 	}
 
-	err = sudo.RunInBenchPrintIO("ln", "-sf", mergedConf, "/etc/nginx/conf.d/frappe-bench.conf")
+	// Symlink bench-generated config
+	err := sudo.RunPrintIO("ln", "-sf", nginxConf, nginxConfDest)
 	if err != nil {
 		fmt.Printf("[ERROR] Failed to symlink nginx config: %v\n", err)
 		return err
 	}
 
-	defer sudo.RemoveFile(mergedConf) // best effort
+	fmt.Printf("[NGINX] Nginx configured and symlinked\n")
 	return nil
 }

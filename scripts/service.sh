@@ -1,6 +1,8 @@
 #!/bin/bash
 set -Eeuo pipefail
 
+cd $BENCH_DIR
+
 if [ "$DEPLOYMENT" = "production" ]; then
   echo "[MODE] PRODUCTION"
   sudo mkdir -p /var/log

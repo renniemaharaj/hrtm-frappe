@@ -8,7 +8,7 @@ import (
 	"goftw/internal/config"
 	"goftw/internal/db"
 
-	internalDeployment "goftw/internal/deployment"
+	internalDeploy "goftw/internal/deploy"
 	"goftw/internal/environ"
 	"goftw/internal/redis"
 	"goftw/internal/sites"
@@ -94,16 +94,21 @@ func main() {
 	// ---------------------------
 	// Deployment
 	// ---------------------------
-	switch deployment {
-	case "production":
-		if err := internalDeployment.RunProduction(); err != nil {
-			log.Fatalf("production mode failed: %v", err)
-		}
-	case "development":
-		if err := internalDeployment.RunDevelopment(); err != nil {
-			log.Fatalf("development mode failed: %v", err)
-		}
-	default:
-		log.Fatalf("unknown deployment mode: %s", deployment)
-	}
+	// DeployThroughSell uses shell script to handle deployment
+	// This is a temporary measure until all deployment logic is ported to Go
+	// Currently, production mode has issues with hitting default nginx welcome page
+	// However, development mode works fine
+	internalDeploy.DeployThroughShell(deployment)
+	// switch deployment {
+	// case "production":
+	// 	if err := internalDeploy.RunProduction(); err != nil {
+	// 		log.Fatalf("production mode failed: %v", err)
+	// 	}
+	// case "development":
+	// 	if err := internalDeploy.RunDevelopment(); err != nil {
+	// 		log.Fatalf("development mode failed: %v", err)
+	// 	}
+	// default:
+	// 	log.Fatalf("unknown deployment mode: %s", deployment)
+	// }
 }
