@@ -35,7 +35,6 @@ func RunInBenchSwallowIO(args ...string) (string, error) {
 func RunInBenchPrintIO(args ...string) error {
 	benchDir := environ.GetFrappeBenchPath()
 
-	fmt.Printf("[BENCH] Running `bench %v` in %s\n", args, benchDir)
 	// Directly run bench with Dir set to benchDir
 	cmd := exec.Command("bench", args...)
 	cmd.Dir = benchDir

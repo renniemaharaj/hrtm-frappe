@@ -2,7 +2,7 @@
     "deployment": "production", 
     "instance_sites": [
         {
-            "site_name": "frontend",
+            "site_name": "frontend.localhost",
             "apps": [
                 "frappe",
                 "erpnext"
@@ -10,7 +10,7 @@
             ]
         },
         {
-            "site_name": "fontend1",
+            "site_name": "frontend1.localhost",
             "apps": [
                 "frappe",
                 "erpnext",
