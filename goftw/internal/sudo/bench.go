@@ -8,7 +8,7 @@ import (
 
 // RunInBenchSwallowIO runs a command in the given benchDir with sudo and returns its output and error.
 func RunInBenchSwallowIO(args ...string) ([]byte, error) {
-	benchDir := environ.GetFrappeBenchPath()
+	benchDir := environ.GetBenchPath()
 
 	cmd := exec.Command("sudo", args...)
 	cmd.Dir = benchDir
@@ -19,7 +19,7 @@ func RunInBenchSwallowIO(args ...string) ([]byte, error) {
 
 // RunInBenchPrintIO runs a command in the given benchDir with sudo and prints its output and error.
 func RunInBenchPrintIO(args ...string) error {
-	benchDir := environ.GetFrappeBenchPath()
+	benchDir := environ.GetBenchPath()
 
 	cmd := exec.Command("sudo", args...)
 	cmd.Dir = benchDir

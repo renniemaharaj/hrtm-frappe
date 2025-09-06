@@ -2,7 +2,7 @@ package db
 
 import (
 	"fmt"
-	internalExec "goftw/internal/exec"
+	"goftw/internal/whoami"
 	"time"
 )
 
@@ -24,7 +24,7 @@ func WaitForDB(cfg Config) error {
 
 	fmt.Printf("[Database] Waiting for MariaDB at %s:%s...\n", cfg.Host, cfg.Port)
 	for {
-		_, err := internalExec.RunSwallowIO(
+		_, err := whoami.RunSwallowIO(
 			"mysqladmin",
 			"ping",
 			"-h", cfg.Host,

@@ -1,7 +1,7 @@
-package sites
+package utils
 
 // difference returns items in a but not in b
-func difference(a, b []string) []string {
+func Difference(a, b []string) []string {
 	mb := map[string]bool{}
 	for _, x := range b {
 		mb[x] = true

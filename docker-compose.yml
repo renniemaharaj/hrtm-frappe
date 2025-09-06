@@ -10,6 +10,8 @@ services:
     entrypoint: ["/usr/local/bin/goftw-entry"]
     # entrypoint: ["/entrypoint.sh"]
     environment:
+      MARIADB_HOST: mariadb
+      MARIADB_PORT: 3306
       MARIADB_ROOT_PASSWORD: root
       MARIADB_ROOT_USERNAME: root
       MARIADB_USER: frappe

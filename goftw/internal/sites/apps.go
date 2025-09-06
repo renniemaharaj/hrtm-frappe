@@ -4,9 +4,45 @@ import (
 	"fmt"
 	"goftw/internal/bench"
 	"goftw/internal/config"
+	"goftw/internal/utils"
 	"os"
 	"path/filepath"
+	"sort"
 )
+
+// CheckoutApps makes sure all apps for a given site are aligned.
+func CheckoutApps(site config.InstanceSite, benchDir string) error {
+	// Ensure apps exist locally in bench/apps
+	if err := fetchMissingApps(site, benchDir); err != nil {
+		fmt.Printf("[ERROR] Failed to fetch missing apps for site %s: %v\n", site.SiteName, err)
+		return err
+	}
+
+	// Get current apps (parsed and normalized)
+	currentAppsInfo, err := ListApps(site.SiteName)
+	if err != nil {
+		fmt.Printf("[ERROR] Failed to list apps for site %s: %v\n", site.SiteName, err)
+		return err
+	}
+	currentAppNames := utils.ExtractAppNames(currentAppsInfo)
+	// Expected apps (from instance.json)
+	expectedApps := site.Apps
+
+	// Normalize order
+	sort.Strings(currentAppNames)
+	sort.Strings(expectedApps)
+
+	// Align apps
+	if err := installMissingApps(site.SiteName, expectedApps, currentAppNames); err != nil {
+		fmt.Printf("[ERROR] Failed to install missing apps for site %s: %v\n", site.SiteName, err)
+		return err
+	}
+	if err := uninstallExtraApps(site.SiteName, currentAppNames, expectedApps); err != nil {
+		fmt.Printf("[ERROR] Failed to uninstall extra apps for site %s: %v\n", site.SiteName, err)
+		return err
+	}
+	return nil
+}
 
 // fetchMissingApps ensures that every app in instance.json exists in bench/apps
 func fetchMissingApps(site config.InstanceSite, benchDir string) error {
@@ -28,7 +64,7 @@ func fetchMissingApps(site config.InstanceSite, benchDir string) error {
 
 // installMissingApps installs apps that are expected but not currently present
 func installMissingApps(siteName string, expected, current []string) error {
-	for _, app := range difference(expected, current) {
+	for _, app := range utils.Difference(expected, current) {
 		if app != "frappe" {
 			fmt.Printf("[APPS] Installing missing app: %s\n", app)
 			if err := InstallApp(siteName, app); err != nil {
@@ -42,7 +78,7 @@ func installMissingApps(siteName string, expected, current []string) error {
 
 // uninstallExtraApps uninstalls apps that are present but not expected
 func uninstallExtraApps(siteName string, current, expected []string) error {
-	for _, app := range difference(current, expected) {
+	for _, app := range utils.Difference(current, expected) {
 		if app != "frappe" {
 			fmt.Printf("[APPS] Uninstalling extra app: %s\n", app)
 			if err := UninstallApp(siteName, app); err != nil {

@@ -25,14 +25,19 @@ func GetFrappeHome() string {
 	return frappeHome
 }
 
-// GetFrappeBenchName returns the name of the frappe bench directory, defaulting to "frappe-bench".
-func GetFrappeBenchName() string {
+// GetBenchName returns the name of the frappe bench directory, defaulting to "frappe-bench".
+func GetBenchName() string {
 	return "frappe-bench"
 }
 
-// GetFrappeBenchPath returns the full path to the frappe bench directory.
-func GetFrappeBenchPath() string {
-	return GetFrappeHome() + "/" + GetFrappeBenchName()
+// GetBenchAppPath returns the full path to a specific app within the bench's apps directory.
+func GetBenchAppPath(app string) string {
+	return GetBenchPath() + "/apps/" + app
+}
+
+// GetBenchPath returns the full path to the frappe bench directory.
+func GetBenchPath() string {
+	return GetFrappeHome() + "/" + GetBenchName()
 }
 
 // GetInstanceFile returns the path to the instance.json file, defaulting to /instance.json.
@@ -43,8 +48,8 @@ func GetInstanceFile() string {
 	return instanceFile
 }
 
-// GetCommonSitesConfig returns the path to the common_site_config.json file, defaulting to /common_site_config.json.
-func GetCommonSitesConfig() string {
+// GetCommonSitesConfigPath returns the path to the common_site_config.json file, defaulting to /common_site_config.json.
+func GetCommonSitesConfigPath() string {
 	if commonSitesConfig == "" {
 		commonSitesConfig = "/common_site_config.json"
 	}

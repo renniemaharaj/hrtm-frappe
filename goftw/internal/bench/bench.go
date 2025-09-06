@@ -11,7 +11,7 @@ import (
 
 // RunInBenchSwallowIO executes a bench command inside the bench directory and returns its output.
 func RunInBenchSwallowIO(args ...string) (string, error) {
-	benchDir := environ.GetFrappeBenchPath()
+	benchDir := environ.GetBenchPath()
 
 	// Directly run bench with Dir set to benchDir
 	cmd := exec.Command("bench", args...)
@@ -33,7 +33,7 @@ func RunInBenchSwallowIO(args ...string) (string, error) {
 
 // RunInBenchPrintIO executes a bench command inside the bench directory and prints its output.
 func RunInBenchPrintIO(args ...string) error {
-	benchDir := environ.GetFrappeBenchPath()
+	benchDir := environ.GetBenchPath()
 
 	// Directly run bench with Dir set to benchDir
 	cmd := exec.Command("bench", args...)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -23,8 +24,8 @@ func main() {
 		Port:     environ.GetEnv("MARIADB_PORT", "3306"),
 		User:     environ.GetEnv("MARIADB_ROOT_USERNAME", "root"),
 		Password: environ.GetEnv("MARIADB_ROOT_PASSWORD", "root"),
-		Debug:    os.Getenv("DB_DEBUG") == "1",
-		Wait:     os.Getenv("WAIT_FOR_DB") != "0",
+		Debug:    true,
+		Wait:     true,
 	}
 
 	// ---------------------------
@@ -39,12 +40,12 @@ func main() {
 	}
 
 	// Load common_site_config.json
-	commonCfg, err := config.LoadCommonSitesConfig(environ.GetCommonSitesConfig())
+	commonCfg, err := config.LoadCommonSitesConfig(environ.GetCommonSitesConfigPath())
 	if err != nil {
 		log.Fatalf("failed to load common_site_config.json: %v", err)
 		os.Exit(1)
 	}
-	benchDir := environ.GetFrappeBenchPath()
+	benchDir := environ.GetBenchPath()
 	deployment := instanceCfx.Deployment
 
 	// ---------------------------
@@ -72,7 +73,7 @@ func main() {
 	// ---------------------------
 	if _, err := os.Stat(benchDir); os.IsNotExist(err) {
 		log.Printf("bench directory %s does not exist, initializing...", benchDir)
-		if err := bench.Initialize(environ.GetFrappeBenchName(), instanceCfx.FrappeBranch); err != nil {
+		if err := bench.Initialize(environ.GetBenchName(), instanceCfx.FrappeBranch); err != nil {
 			log.Fatalf("bench init failed: %v", err)
 		}
 	} else {
@@ -82,8 +83,8 @@ func main() {
 			log.Fatalf("bench test command failed: %v", err)
 			os.Exit(1)
 		}
-
 		log.Printf("bench test command succeeded")
+		bench.CopyCommonSitesConfig(benchDir, environ.GetCommonSitesConfigPath())
 	}
 
 	// ---------------------------
@@ -92,6 +93,14 @@ func main() {
 	if err := sites.CheckoutSites(instanceCfx, benchDir, dbCfg.User, dbCfg.Password); err != nil {
 		log.Fatalf("sites sync failed: %v", err)
 	}
+
+	// ---------------------------
+	// Update bench and apps after deployment
+	// ---------------------------
+	if err := bench.UpdateApps(benchDir); err != nil {
+		fmt.Printf("[ERROR] Failed to update bench apps: %v", err)
+	}
+	sites.MigrateAll(benchDir)
 
 	// ---------------------------
 	// Deployment

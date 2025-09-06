@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"time"
 
-	internalExec "goftw/internal/exec"
+	"goftw/internal/whoami"
 )
 
 type Config struct {
@@ -39,7 +39,7 @@ func WaitForRedis(cfg Config) error {
 
 	fmt.Printf("[REDIS] waiting for Redis at %s:%s...\n", host, port)
 	for {
-		if _, err := internalExec.RunSwallowIO("redis-cli", "-h", host, "-p", port, "ping"); err == nil {
+		if _, err := whoami.RunSwallowIO("redis-cli", "-h", host, "-p", port, "ping"); err == nil {
 			fmt.Printf("[REDIS] Redis %s:%s reachable.\n", host, port)
 			return nil
 		}

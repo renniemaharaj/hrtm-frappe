@@ -1,4 +1,4 @@
-package exec
+package whoami
 
 import (
 	"os"
@@ -13,6 +13,7 @@ func RunSwallowIO(name string, arg ...string) (string, error) {
 	return string(output), err
 }
 
+// Executes a command and prints its output
 func RunPrintIO(name string, arg ...string) error {
 	cmd := exec.Command(name, arg...)
 	cmd.Stdin = os.Stdin

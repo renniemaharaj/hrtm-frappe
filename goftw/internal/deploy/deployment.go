@@ -18,6 +18,6 @@ func RunDevelopment() error {
 // RunProduction sets up supervisor and nginx for production mode
 func RunProduction() error {
 	fmt.Println("[MODE] PRODUCTION")
-	supervisor.SetupSupervisor(environ.GetFrappeBenchPath())
+	supervisor.SetupSupervisor(environ.GetBenchPath())
 	return nil
 }
